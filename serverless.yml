@@ -1,0 +1,65 @@
+service: PrivateLambdaUrlPOC
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: go1.x
+
+package:
+  patterns:
+    - '!./**'
+    - ./bin/**
+
+functions:
+  entry:
+    handler: bin/entry
+    role: privateLambdaInvoker
+    events:
+      - httpApi:
+          path: /entry
+          method: post
+    environment:
+      PRIVATE_LAMBDA_URL: !GetAtt PrivateLambdaUrlLambdaFunctionUrl.FunctionUrl
+
+  PrivateLambdaUrl:
+    handler: bin/lambda-url-func
+    url:
+      authorizer: aws_iam
+
+resources:
+  Resources:
+    privateLambdaInvoker:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: /my/cust/path/
+        RoleName: PrivateLambdaInvoker
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: myPolicyName
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                        - ':'
+                        -
+                          - 'arn:aws:logs'
+                          - Ref: 'AWS::Region'
+                          - Ref: 'AWS::AccountId'
+                          - 'log-group:/aws/lambda/*:*:*'
+                - Effect: Allow
+                  Action:
+                    - "lambda:InvokeFunctionUrl"
+                  Resource: !GetAtt PrivateLambdaUrlLambdaFunction.Arn
